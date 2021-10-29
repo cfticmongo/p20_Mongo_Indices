@@ -221,3 +221,66 @@ db.libros.insert([
 db.libros.find({$text: {$search: 'econom'}}) // Fail en castellano (inconsistente) 
 
 ```
+
+### Modificar el comportamiento case-insensitive/diacritic-insensitive
+
+Reconstruimos el índice sin lenguaje castellano
+
+```
+db.libros.dropIndexes()
+
+db.libros.createIndex({"titulo": "text"})
+```
+
+```
+db.libros.find({$text: {$search: 'paris', $caseSensitive: true}}) // La consulta será case-sensitive
+```
+
+```
+db.libros.find({$text: {$search: 'paris', $diacriticSensitive: true}}) // La consulta será diacritic-sensitive
+```
+
+### Funcionalidad text score
+
+Obtienes un valor de la frecuencia de una palabra en los textos de los documentos usados en el índice
+
+Set datos 
+
+```
+db.libros.insert([
+    {titulo: 'París', autor: 'vv.aa.'},
+    {titulo: 'París siempre será París', autor: 'Fulanito'}
+])
+```
+
+```
+db.libros.find({$text: {$search: 'paris'}},{_id: 0}).sort({titulo: 1})
+```
+{ titulo: 'París', autor: 'vv.aa.' }
+{ titulo: 'París era una Fiesta', autor: 'Ernest Hemingway' }
+{ titulo: 'París siempre será París', autor: 'Fulanito' }
+{ titulo: 'París, La Guía Completa', autor: 'vv.aa.' }
+
+Con text score
+
+```
+db.libros.find({$text: {$search: 'paris'}}, {score: {$meta: "textScore"}, _id: 0}).sort({score: {$meta: "textScore"} })
+```
+Para obtener el score y ordenar por este valor, utilizamos el campo score con el operador $meta y valor textScore en
+la proyección y en el documento de ordenación.
+
+Devuelve en sentido descendente según el valor obtenido en ese campo score, ese valor es calculado por mongo
+teniendo en cuenta la frecuencia de la palabra sobre el total de palabras.
+
+{ titulo: 'París siempre será París',
+  autor: 'Fulanito',
+  score: 1.125 } // si no se necesita el valor de score no se añade a la proyección
+{ titulo: 'París', 
+  autor: 'vv.aa.', 
+  score: 1 }
+{ titulo: 'París, La Guía Completa',
+  autor: 'vv.aa.',
+  score: 0.625 }
+{ titulo: 'París era una Fiesta',
+  autor: 'Ernest Hemingway',
+  score: 0.625 }
