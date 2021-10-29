@@ -137,3 +137,56 @@ db.pacientes.insert({nombre: 'Laura'}) // El primer documento sin el campo dni l
 db.pacientes.insert({nombre: 'Carlos'}) // Error
 
 ```
+
+## Índices geoespaciales
+
+Sintaxis
+
+db.<coleccion>.createIndex({<campo-coordenadas>: "2dsphere"})
+
+Set de datos de Atlas
+
+```
+use sample_restaurants
+
+db.restaurants.createIndex({"address.coord": "2dsphere"})
+```
+
+### Consultas de proximidad (a un punto)
+
+```
+db.restaurants.find({
+    "address.coord": {
+        $near: {
+            $geometry: {
+                type: "Point",
+                coordinates: [-73.9667, 40.78]  
+            },                                 
+            $minDistance: 0,
+            $maxDistance: 500 
+        }
+    }
+})
+```
+
+
+### Consultas acotadas (superficie)
+
+db.restaurants.find({
+    "address.coord": {
+        $geoWithin: {
+            $geometry: {
+                type: "Polygon",
+                coordinates: [
+                    [
+                        [-73.9667, 40.78],
+                        [-74.9667, 40.78],
+                        [-74.9667, 41.78],
+                        [-73.9667, 41.78],
+                        [-73.9667, 40.78],
+                    ]
+                ]
+            }
+        }
+    }
+})
