@@ -37,7 +37,7 @@ let runners = [];
 let names = ['Laura','Juan','Fernando','María','Carlos','Lucía','David'];
 let surnames = ['Fernández','Etxevarría','Nadal','Novo','Sánchez','López','García'];
 let dniWords = ['A','B','C','D','P','X'];
-for (i = 0; i < 2000000; i++) {
+for (i = 0; i < 1000000; i++) {
     runners.push({
         _id: i,
         name: names[Math.floor(Math.random() * names.length)],
@@ -50,4 +50,102 @@ for (i = 0; i < 2000000; i++) {
 
 use maraton
 db.runners.insert(runners)
+```
+
+## Etapas más importantes del Plan de ejecución de la consulta
+
+- COLLSPAN. Escanear documentos en la colección a partir de los datos de la consulta.
+- IXSCAN. Escanear documentos en el índice a partir de los datos de la consulta.
+- FETCH. Recupera los documentos de la colección a partir de la lectura de los índices.
+- SORT. Ordena los documentos seleccionados en memoria (evitar).
+
+## Uso del método explain()
+
+Si hacemos una consulta y no tenemos índices, evidentemente tendrá que escanear la colección con la etapa
+COLLSCAN.
+
+```
+db.runners.find({dni: "9464990C"}).explain('allPlansExecution')
+```
+
+Si creamos un índice en ese mismo campo y repetimos la consulta comprobaremos como se utiliza el índice.
+
+```
+db.runners.createIndex({dni: 1},{unique: true});
+db.runners.find({dni: "9464990C"}).explain('allPlansExecution')
+```
+
+Ahora el plan ganador utiliza las etapas IXSCAN y FETCH, empleando solamente 3ms mientras que en el ejemplo anterior tardaba más de 1000ms.
+
+## Uso de varios índices simples
+
+```
+db.runners.createIndex({age: 1})
+db.runners.createIndex({surname1: 1})
+```
+
+En una consulta que tenga campos que estén en diferentes índices, MongoDB usará el que más rápido ejecute la consulta
+de acuerdo a la evaluación de planes que realiza (que luego almacenada en la cache plan).
+
+```
+db.runners.find({surname1: 'Novo', age: {$gte: 18}}).explain('allPlansExecution')
+```
+
+Mongo puede realizar intersección de índices a partir de ciertas consultas.
+
+```
+db.runners.find({
+    $or: [
+        {surname1: 'Novo', age: {$gte: 18}},
+        {age: 45}
+    ]
+}).explain('allPlansExecution')
+```
+
+## Uso de índices múltiples
+
+En este tipo de índices condiciona el orden de los campos empleados para que sea utilizado.
+
+```
+db.runners.dropIndexes()
+db.runners.createIndex({age: 1, surname1: 1})
+```
+
+### Consultas con todos los campos del índice
+
+MongoDB usará el índice.
+
+```
+db.runners.find({surname1: 'Novo', age: {$gte: 18}}).explain('allPlansExecution')
+```
+
+### Consultas que no tengan todos los campos del índice
+
+Para a que MongoDB le resulte óptimo el uso del índice los campos de la consulta
+deberán ser prefijo.
+
+```
+db.runners.find({age: 45}).explain('allPlansExecution')  // Va a usar el índice porque age es prefijo
+```
+
+```
+db.runners.find({surname1: 'Nadal'}).explain('allPlansExecution')  // No va a usar el índice porque surname1 no es prefijo
+```
+
+Para profundizar, un índice con tres campos.
+
+
+```
+db.runners.dropIndexes()
+db.runners.createIndex({age: 1, surname1: 1, name: 1})
+```
+
+Diferentes consultas para comprobar los prefijos
+
+```
+db.runners.find({surname1: 'Nadal', age: 40}).explain('allPlansExecution')  // Usará el índice
+db.runners.find({name: 'Laura', surname1: 'Nadal', age: 40}).explain('allPlansExecution')  // Usará el índice
+db.runners.find({name: 'Laura', surname1: 'Nadal'}).explain('allPlansExecution')  // No usará el índice porque no es prefijo
+db.runners.find({age: {$gte: 40}, name: 'Laura'}).explain('allPlansExecution')  // No es prefijo pero a veces lo puede usar
+db.runners.find({age: 60, name: 'Laura'}).explain('allPlansExecution')  // No es prefijo pero a veces lo puede usar
 ```
