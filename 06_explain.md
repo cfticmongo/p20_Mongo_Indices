@@ -149,3 +149,27 @@ db.runners.find({name: 'Laura', surname1: 'Nadal'}).explain('allPlansExecution')
 db.runners.find({age: {$gte: 40}, name: 'Laura'}).explain('allPlansExecution')  // No es prefijo pero a veces lo puede usar
 db.runners.find({age: 60, name: 'Laura'}).explain('allPlansExecution')  // No es prefijo pero a veces lo puede usar
 ```
+
+Prefijo a los efectos de índices es:
+
+db.foo.createIndex({a: 1, b: 1, c: 1, d: 1})
+
+Las consultas prefijo de ese indice serían (no exhaustivo):
+
+{a: <valor>}
+{a: <valor>, b: <valor>}
+{b: <valor>, a: <valor>}
+{a: <valor>, b: <valor>, c: <valor>}
+... idem anterior modificando el orden
+{a: <valor>, b: <valor>, c: <valor>, d: <valor>}
+... idem anterior modificando el orden
+
+No serían prefijo:
+
+{b: <valor>}
+{c: <valor>}
+{d: <valor>}
+{b: <valor>, c: <valor>}
+{c: <valor>, d: <valor>}
+{b: <valor>, c: <valor>, d: <valor>}
+...
